@@ -42,7 +42,7 @@ if uploaded_file is not None:
                 with st.spinner("O Gemini está analisando seus dados e gerando o código do gráfico..."):
                     
                     # Converte os dados de amostra de forma segura sem quebrar o JSON
-                    amostra_dados = df.head(5).to_json(orient='records', force_dates='iso')
+                    amostra_dados = df.head(5).to_json(orient='records', date_format='iso')
                     colunas = list(df.columns)
 
                     system_instruction = f"""
