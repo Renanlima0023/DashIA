@@ -56,9 +56,9 @@ if uploaded_file is not None:
                     - Use `st.plotly_chart(fig)` para renderizar o gráfico no Streamlit.
                     """
 
-                    # Chamada do Gemini com indentação corrigida
+                    # Chamada usando o modelo gemini-2.0-flash
                     response = client.models.generate_content(
-                        model='gemini-1.5-flash',
+                        model='gemini-2.0-flash',
                         contents=user_prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=system_instruction,
