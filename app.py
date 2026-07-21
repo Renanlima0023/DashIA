@@ -58,9 +58,9 @@ if uploaded_file is not None:
                         - Use `st.plotly_chart(fig)` para renderizar o gráfico no Streamlit.
                         """
 
-                        # Chamada oficial do modelo 1.5-flash
+                        # Modelo oficial e suportado
                         response = client.models.generate_content(
-                            model='gemini-1.5-flash',
+                            model='gemini-2.0-flash',
                             contents=user_prompt,
                             config=types.GenerateContentConfig(
                                 system_instruction=system_instruction,
@@ -92,7 +92,7 @@ if uploaded_file is not None:
 
                     except APIError as e:
                         if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                            st.error("⏳ Limite de requisições do plano gratuito atingido. Aguarde cerca de 1 minuto antes de tentar novamente.")
+                            st.warning("⏳ Limite de requisições por minuto atingido no plano gratuito. Aguarde 30 a 60 segundos e clique em 'Gerar Dashboard / Gráfico' novamente.")
                         else:
                             st.error(f"Erro da API do Gemini: {e}")
 
