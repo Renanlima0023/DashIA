@@ -12,7 +12,7 @@ st.write("Envie sua planilha, converse sobre o estilo desejado e veja o gráfico
 
 # 1. Pega a chave da API salva nos Secrets do Streamlit automaticamente
 try:
-    api_key = st.secrets["AQ.Ab8RN6IixXTB67TJ5Mm6XJAHR6mfMSaDI-Kh24Gu1mtPN1fcbQ"]
+    api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
 except Exception:
     st.error("⚠️ Chave de API não encontrada nos Secrets do Streamlit. Configure a variável GEMINI_API_KEY.")
