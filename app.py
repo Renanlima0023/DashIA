@@ -41,7 +41,7 @@ if uploaded_file is not None:
             else:
                 with st.spinner("O Gemini está analisando seus dados e gerando o código do gráfico..."):
                     
-                    # Converte os dados de amostra de forma segura sem quebrar o JSON
+                    # Converte os dados de amostra de forma segura
                     amostra_dados = df.head(5).to_json(orient='records', date_format='iso')
                     colunas = list(df.columns)
 
@@ -56,9 +56,9 @@ if uploaded_file is not None:
                     - Use `st.plotly_chart(fig)` para renderizar o gráfico no Streamlit.
                     """
 
-                    # Chamada oficial da nova SDK do Gemini
-                   response = client.models.generate_content(
-    model='gemini-1.5-flash',
+                    # Chamada do Gemini com indentação corrigida
+                    response = client.models.generate_content(
+                        model='gemini-1.5-flash',
                         contents=user_prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=system_instruction,
@@ -77,7 +77,7 @@ if uploaded_file is not None:
 
                     st.markdown("### 📈 Visualização Gerada")
                     
-                    # Execução segura do código gerado para exibir o gráfico no Streamlit
+                    # Execução do código gerado
                     try:
                         import plotly.express as px
                         import plotly.graph_objects as go
