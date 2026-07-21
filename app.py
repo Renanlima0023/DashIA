@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
+import time
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
 
 # Configuração da página do Streamlit
 st.set_page_config(page_title="Criador Conversacional de Dashboards", layout="wide")
@@ -40,53 +42,59 @@ if uploaded_file is not None:
                 st.warning("Por favor, digite o que você deseja visualizar.")
             else:
                 with st.spinner("O Gemini está analisando seus dados e gerando o código do gráfico..."):
-                    
-                    # Converte os dados de amostra de forma segura
-                    amostra_dados = df.head(5).to_json(orient='records', date_format='iso')
-                    colunas = list(df.columns)
-
-                    system_instruction = f"""
-                    Você é um especialista em análise de dados e Python/Streamlit.
-                    O usuário forneceu um dataset com as seguintes colunas: {colunas}.
-                    Amostra dos dados em JSON: {amostra_dados}
-
-                    Sua tarefa é gerar APENAS o código Python necessário usando Streamlit e Plotly para exibir o gráfico solicitado pelo usuário.
-                    - Use o DataFrame chamado 'df'.
-                    - Retorne APENAS o código Python sem marcadores de markdown adicionais ou explicações.
-                    - Use `st.plotly_chart(fig)` para renderizar o gráfico no Streamlit.
-                    """
-
-                    # Chamada usando o modelo gemini-2.0-flash
-                    response = client.models.generate_content(
-                        model='gemini-2.0-flash',
-                        contents=user_prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system_instruction,
-                            temperature=0.2,
-                        )
-                    )
-
-                    # Limpeza do código retornado
-                    codigo_gerado = response.text.strip()
-                    if codigo_gerado.startswith("```python"):
-                        codigo_gerado = codigo_gerado[9:]
-                    if codigo_gerado.startswith("```"):
-                        codigo_gerado = codigo_gerado[3:]
-                    if codigo_gerado.endswith("```"):
-                        codigo_gerado = codigo_gerado[:-3]
-
-                    st.markdown("### 📈 Visualização Gerada")
-                    
-                    # Execução do código gerado
                     try:
-                        import plotly.express as px
-                        import plotly.graph_objects as go
+                        # Converte os dados de amostra de forma segura
+                        amostra_dados = df.head(5).to_json(orient='records', date_format='iso')
+                        colunas = list(df.columns)
+
+                        system_instruction = f"""
+                        Você é um especialista em análise de dados e Python/Streamlit.
+                        O usuário forneceu um dataset com as seguintes colunas: {colunas}.
+                        Amostra dos dados em JSON: {amostra_dados}
+
+                        Sua tarefa é gerar APENAS o código Python necessário usando Streamlit e Plotly para exibir o gráfico solicitado pelo usuário.
+                        - Use o DataFrame chamado 'df'.
+                        - Retorne APENAS o código Python sem marcadores de markdown adicionais ou explicações.
+                        - Use `st.plotly_chart(fig)` para renderizar o gráfico no Streamlit.
+                        """
+
+                        # Chamada oficial do modelo 1.5-flash
+                        response = client.models.generate_content(
+                            model='gemini-1.5-flash',
+                            contents=user_prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=system_instruction,
+                                temperature=0.2,
+                            )
+                        )
+
+                        # Limpeza do código retornado
+                        codigo_gerado = response.text.strip()
+                        if codigo_gerado.startswith("```python"):
+                            codigo_gerado = codigo_gerado[9:]
+                        if codigo_gerado.startswith("```"):
+                            codigo_gerado = codigo_gerado[3:]
+                        if codigo_gerado.endswith("```"):
+                            codigo_gerado = codigo_gerado[:-3]
+
+                        st.markdown("### 📈 Visualização Gerada")
                         
-                        local_scope = {"df": df, "st": st, "px": px, "go": go}
-                        exec(codigo_gerado, local_scope)
-                    except Exception as e:
-                        st.error(f"Erro ao desenhar o gráfico: {e}")
-                        st.code(codigo_gerado, language="python")
+                        # Execução do código gerado
+                        try:
+                            import plotly.express as px
+                            import plotly.graph_objects as go
+                            
+                            local_scope = {"df": df, "st": st, "px": px, "go": go}
+                            exec(codigo_gerado, local_scope)
+                        except Exception as e:
+                            st.error(f"Erro ao desenhar o gráfico: {e}")
+                            st.code(codigo_gerado, language="python")
+
+                    except APIError as e:
+                        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                            st.error("⏳ Limite de requisições do plano gratuito atingido. Aguarde cerca de 1 minuto antes de tentar novamente.")
+                        else:
+                            st.error(f"Erro da API do Gemini: {e}")
 
     except Exception as e:
         st.error(f"Erro ao processar o arquivo: {e}")
