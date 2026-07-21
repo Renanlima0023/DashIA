@@ -46,7 +46,8 @@ if uploaded_file:
             system_prompt = f"""
             Você é um assistente de visualização de dados.
             Colunas disponíveis: {json.dumps(colunas_e_tipos)}
-            Amostra dos dados: {json.dumps(exemplo_linhas)}
+            Amostra dos dados:
+            {df.head(5).to_string()}
 
             Responda APENAS um objeto JSON válido no seguinte formato (sem formatação markdown em volta):
             {{
