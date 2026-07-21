@@ -1,9 +1,6 @@
 import streamlit as st
 import pandas as pd
-import time
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
+from openai import OpenAI
 
 # Configuração da página do Streamlit
 st.set_page_config(page_title="Criador Conversacional de Dashboards", layout="wide")
@@ -11,12 +8,15 @@ st.set_page_config(page_title="Criador Conversacional de Dashboards", layout="wi
 st.title("📊 Criador Conversacional de Dashboards")
 st.write("Envie sua planilha, converse sobre o estilo desejado e veja o gráfico ser gerado!")
 
-# 1. Autenticação e Configuração do Cliente Gemini
+# 1. Autenticação e Configuração do Cliente DeepSeek
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-    client = genai.Client(api_key=api_key)
+    api_key = st.secrets["DEEPSEEK_API_KEY"]
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.deepseek.com"
+    )
 except Exception:
-    st.error("⚠️ Chave de API não encontrada nos Secrets do Streamlit. Configure a variável GEMINI_API_KEY.")
+    st.error("⚠️ Chave de API não encontrada nos Secrets do Streamlit. Configure a variável DEEPSEEK_API_KEY.")
     st.stop()
 
 # 2. Upload da Planilha
@@ -41,7 +41,7 @@ if uploaded_file is not None:
             if not user_prompt:
                 st.warning("Por favor, digite o que você deseja visualizar.")
             else:
-                with st.spinner("O Gemini está analisando seus dados e gerando o código do gráfico..."):
+                with st.spinner("O DeepSeek está analisando seus dados e gerando o código do gráfico..."):
                     try:
                         # Converte os dados de amostra de forma segura
                         amostra_dados = df.head(5).to_json(orient='records', date_format='iso')
@@ -54,22 +54,23 @@ if uploaded_file is not None:
 
                         Sua tarefa é gerar APENAS o código Python necessário usando Streamlit e Plotly para exibir o gráfico solicitado pelo usuário.
                         - Use o DataFrame chamado 'df'.
-                        - Retorne APENAS o código Python sem marcadores de markdown adicionais ou explicações.
+                        - Retorne APENAS o código Python puro sem marcadores de markdown adicionais (como ```python) ou explicações.
                         - Use `st.plotly_chart(fig)` para renderizar o gráfico no Streamlit.
                         """
 
-                        # Modelo oficial e suportado
-                        response = client.models.generate_content(
-                            model='gemini-2.0-flash',
-                            contents=user_prompt,
-                            config=types.GenerateContentConfig(
-                                system_instruction=system_instruction,
-                                temperature=0.2,
-                            )
+                        # Chamada para o modelo DeepSeek Chat
+                        response = client.chat.completions.create(
+                            model="deepseek-chat",
+                            messages=[
+                                {"role": "system", "content": system_instruction},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            temperature=0.2,
+                            stream=False
                         )
 
                         # Limpeza do código retornado
-                        codigo_gerado = response.text.strip()
+                        codigo_gerado = response.choices[0].message.content.strip()
                         if codigo_gerado.startswith("```python"):
                             codigo_gerado = codigo_gerado[9:]
                         if codigo_gerado.startswith("```"):
@@ -90,11 +91,8 @@ if uploaded_file is not None:
                             st.error(f"Erro ao desenhar o gráfico: {e}")
                             st.code(codigo_gerado, language="python")
 
-                    except APIError as e:
-                        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                            st.warning("⏳ Limite de requisições por minuto atingido no plano gratuito. Aguarde 30 a 60 segundos e clique em 'Gerar Dashboard / Gráfico' novamente.")
-                        else:
-                            st.error(f"Erro da API do Gemini: {e}")
+                    except Exception as e:
+                        st.error(f"Erro na comunicação com o DeepSeek: {e}")
 
     except Exception as e:
         st.error(f"Erro ao processar o arquivo: {e}")
