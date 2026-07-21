@@ -1,16 +1,15 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import json
 from google import genai
 from google.genai import types
 
-# Título da aplicação
-st.set_page_config(page_title="Assistente de Dashboards", layout="wide")
+# Configuração da página do Streamlit
+st.set_page_config(page_title="Criador Conversacional de Dashboards", layout="wide")
+
 st.title("📊 Criador Conversacional de Dashboards")
 st.write("Envie sua planilha, converse sobre o estilo desejado e veja o gráfico ser gerado!")
 
-# 1. Pega a chave da API salva nos Secrets do Streamlit automaticamente
+# 1. Autenticação e Configuração do Cliente Gemini
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
@@ -19,78 +18,75 @@ except Exception:
     st.stop()
 
 # 2. Upload da Planilha
-uploaded_file = st.sidebar.file_uploader("1. Envie sua planilha (.csv ou .xlsx)", type=["csv", "xlsx"])
+uploaded_file = st.file_uploader("Escolha um arquivo CSV ou Excel", type=["csv", "xlsx", "xls"])
 
-if uploaded_file:
-    # Leitura dos dados
-    if uploaded_file.name.endswith('.csv'):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
-    
-    st.write("### 🔍 Prévia dos seus Dados")
-    st.dataframe(df.head(3))
+if uploaded_file is not None:
+    try:
+        if uploaded_file.name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+            
+        st.success("Planilha carregada com sucesso!")
+        
+        with st.expander("👀 Dar uma olhada nos dados"):
+            st.dataframe(df.head())
 
-    # Extrai informações das colunas
-    colunas_e_tipos = {col: str(df[col].dtype) for col in df.columns}
-    exemplo_linhas = df.head(2).to_dict(orient="records")
+        # Entrada de prompt do usuário
+        user_prompt = st.text_input("Como você gostaria de visualizar estes dados? (Ex: Crie um gráfico de barras com as vendas por categoria)")
 
-    st.markdown("---")
-    st.subheader("💬 Converse para gerar seu gráfico")
+        if st.button("Gerar Dashboard / Gráfico"):
+            if not user_prompt:
+                st.warning("Por favor, digite o que você deseja visualizar.")
+            else:
+                with st.spinner("O Gemini está analisando seus dados e gerando o código do gráfico..."):
+                    
+                    # Converte os dados de amostra de forma segura sem quebrar o JSON
+                    amostra_dados = df.head(5).to_json(orient='records', force_dates='iso')
+                    colunas = list(df.columns)
 
-    # Campo para o usuário digitar o que quer
-    prompt = st.text_input("O que você deseja analisar? (Ex: 'Crie um gráfico de barras com vendas por produto na cor azul')")
+                    system_instruction = f"""
+                    Você é um especialista em análise de dados e Python/Streamlit.
+                    O usuário forneceu um dataset com as seguintes colunas: {colunas}.
+                    Amostra dos dados em JSON: {amostra_dados}
 
-    if st.button("Gerar Gráfico"):
-        if prompt:
-            system_prompt = f"""
-            Você é um assistente de visualização de dados.
-            Colunas disponíveis: {json.dumps(colunas_e_tipos)}
-            Amostra dos dados:
-            {df.head(5).to_string()}
+                    Sua tarefa é gerar APENAS o código Python necessário usando Streamlit e Plotly para exibir o gráfico solicitado pelo usuário.
+                    - Use o DataFrame chamado 'df'.
+                    - Retorne APENAS o código Python sem marcadores de markdown adicionais ou explicações.
+                    - Use `st.plotly_chart(fig)` para renderizar o gráfico no Streamlit.
+                    """
 
-            Responda APENAS um objeto JSON válido no seguinte formato (sem formatação markdown em volta):
-            {{
-                "explicacao": "Uma breve explicação do gráfico gerado.",
-                "tipo_grafico": "bar" ou "line" ou "pie" ou "scatter",
-                "x": "nome_da_coluna_eixo_x",
-                "y": "nome_da_coluna_eixo_y",
-                "titulo": "Título do Gráfico",
-                "cor": "#1f77b4"
-            }}
-            """
-
-            with st.spinner("A IA está analisando os dados e criando a visualização..."):
-                try:
-                    # Chamada ao Gemini
+                    # Chamada oficial da nova SDK do Gemini
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
-                        contents=[system_prompt, f"Pedido: {prompt}"],
+                        contents=user_prompt,
                         config=types.GenerateContentConfig(
-                            response_mime_type="application/json"
+                            system_instruction=system_instruction,
+                            temperature=0.2,
                         )
                     )
+
+                    # Limpeza do código retornado
+                    codigo_gerado = response.text.strip()
+                    if codigo_gerado.startswith("```python"):
+                        codigo_gerado = codigo_gerado[9:]
+                    if codigo_gerado.startswith("```"):
+                        codigo_gerado = codigo_gerado[3:]
+                    if codigo_gerado.endswith("```"):
+                        codigo_gerado = codigo_gerado[:-3]
+
+                    st.markdown("### 📈 Visualização Gerada")
                     
-                    config = json.loads(response.text)
-                    st.success(config.get("explicacao"))
+                    # Execução segura do código gerado para exibir o gráfico no Streamlit
+                    try:
+                        import plotly.express as px
+                        import plotly.graph_objects as go
+                        
+                        local_scope = {"df": df, "st": st, "px": px, "go": go}
+                        exec(codigo_gerado, local_scope)
+                    except Exception as e:
+                        st.error(f"Erro ao desenhar o gráfico: {e}")
+                        st.code(codigo_gerado, language="python")
 
-                    tipo = config.get("tipo_grafico")
-                    x_col = config.get("x")
-                    y_col = config.get("y")
-                    titulo = config.get("titulo", "Dashboard")
-                    cor = config.get("cor", "#1f77b4")
-
-                    # Gerar gráfico Plotly
-                    if tipo == "bar":
-                        fig = px.bar(df, x=x_col, y=y_col, title=titulo, color_discrete_sequence=[cor])
-                    elif tipo == "line":
-                        fig = px.line(df, x=x_col, y=y_col, title=titulo, color_discrete_sequence=[cor])
-                    elif tipo == "pie":
-                        fig = px.pie(df, names=x_col, values=y_col, title=titulo)
-                    else:
-                        fig = px.scatter(df, x=x_col, y=y_col, title=titulo, color_discrete_sequence=[cor])
-
-                    st.plotly_chart(fig, use_container_width=True)
-
-                except Exception as e:
-                    st.error(f"Erro ao processar: {e}")
+    except Exception as e:
+        st.error(f"Erro ao processar o arquivo: {e}")
