@@ -76,12 +76,12 @@ if uploaded_file is not None:
 
                         st.markdown("### 📈 Visualização Gerada")
                         
-                        # Execução do código gerado
+                        # Execução do código gerado (com 'pd' adicionado ao escopo)
                         try:
                             import plotly.express as px
                             import plotly.graph_objects as go
                             
-                            local_scope = {"df": df, "st": st, "px": px, "go": go}
+                            local_scope = {"df": df, "st": st, "px": px, "go": go, "pd": pd}
                             exec(codigo_gerado, local_scope)
                         except Exception as e:
                             st.error(f"Erro ao desenhar o gráfico: {e}")
